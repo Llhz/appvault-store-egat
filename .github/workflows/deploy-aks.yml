@@ -1,0 +1,85 @@
+# -------------------------------------------------------------------
+# Build & Deploy AppVault to AKS (Azure)
+# -------------------------------------------------------------------
+# Manual trigger only — select target environment when dispatching.
+# -------------------------------------------------------------------
+name: "Deploy — Azure AKS"
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment"
+        required: true
+        default: "dev"
+        type: choice
+        options: [dev, stg, uat, prod]
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  JAVA_VERSION: "8"
+
+jobs:
+  build-and-deploy:
+    name: "Build & Deploy to AKS"
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment || 'dev' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: "temurin"
+          cache: "maven"
+
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Get ACR Login Server
+        id: acr
+        run: |
+          ACR_NAME="${{ secrets.ACR_NAME }}"
+          LOGIN_SERVER=$(az acr show --name "$ACR_NAME" --query loginServer -o tsv)
+          echo "login_server=$LOGIN_SERVER" >> "$GITHUB_OUTPUT"
+
+      - name: ACR Login
+        run: az acr login --name "${{ secrets.ACR_NAME }}"
+
+      - name: Build & Push Image with Jib
+        run: |
+          IMAGE="${{ steps.acr.outputs.login_server }}/appvault/appvault-store"
+          TAG="${{ github.sha }}"
+          mvn compile jib:build -DskipTests \
+            -Djib.to.image="${IMAGE}" \
+            -Djib.to.tags="${TAG},latest"
+
+      - name: Set AKS Context
+        uses: azure/aks-set-context@v4
+        with:
+          resource-group: ${{ secrets.AKS_RESOURCE_GROUP }}
+          cluster-name: ${{ secrets.AKS_CLUSTER_NAME }}
+
+      - name: Substitute Manifest Variables
+        run: |
+          export ACR_LOGIN_SERVER="${{ steps.acr.outputs.login_server }}"
+          export WORKLOAD_IDENTITY_CLIENT_ID="${{ secrets.WORKLOAD_IDENTITY_CLIENT_ID }}"
+          export KEY_VAULT_NAME="${{ secrets.KEY_VAULT_NAME }}"
+          export AZURE_TENANT_ID="${{ secrets.AZURE_TENANT_ID }}"
+
+          envsubst < iac-azure/k8s/app-deployment.yaml > /tmp/app-deployment.yaml
+
+      - name: Deploy to AKS
+        run: |
+          kubectl apply -f /tmp/app-deployment.yaml
+          kubectl -n appvault rollout restart deployment/appvault-store
+          kubectl -n appvault rollout status deployment/appvault-store --timeout=300s

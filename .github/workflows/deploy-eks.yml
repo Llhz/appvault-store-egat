@@ -1,0 +1,78 @@
+# -------------------------------------------------------------------
+# Build & Deploy AppVault to EKS (AWS)
+# -------------------------------------------------------------------
+# Manual trigger only — select target environment when dispatching.
+# -------------------------------------------------------------------
+name: "Deploy — AWS EKS"
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment"
+        required: true
+        default: "dev"
+        type: choice
+        options: [dev, stg, uat, prod]
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  JAVA_VERSION: "8"
+
+jobs:
+  build-and-deploy:
+    name: "Build & Deploy to EKS"
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment || 'dev' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: "temurin"
+          cache: "maven"
+
+      - name: Configure AWS Credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build & Push Image with Jib
+        run: |
+          IMAGE="${{ secrets.ECR_REPOSITORY_URL }}"
+          TAG="${{ github.sha }}"
+          mvn compile jib:build -DskipTests \
+            -Djib.to.image="${IMAGE}" \
+            -Djib.to.tags="${TAG},latest"
+
+      - name: Update kubeconfig
+        run: |
+          aws eks update-kubeconfig \
+            --name "${{ secrets.EKS_CLUSTER_NAME }}" \
+            --region "${{ secrets.AWS_REGION }}"
+
+      - name: Substitute Manifest Variables
+        run: |
+          export ECR_REPOSITORY_URL="${{ secrets.ECR_REPOSITORY_URL }}"
+          export APP_IRSA_ROLE_ARN="${{ secrets.APP_IRSA_ROLE_ARN }}"
+          export SECRET_ADMIN_PASSWORD_ARN="${{ secrets.SECRET_ADMIN_PASSWORD_ARN }}"
+          export SECRET_SPRING_PROFILES_ARN="${{ secrets.SECRET_SPRING_PROFILES_ARN }}"
+
+          envsubst < iac-aws/k8s/app-deployment.yaml > /tmp/app-deployment.yaml
+
+      - name: Deploy to EKS
+        run: |
+          kubectl apply -f /tmp/app-deployment.yaml
+          kubectl -n appvault rollout restart deployment/appvault-store
+          kubectl -n appvault rollout status deployment/appvault-store --timeout=300s

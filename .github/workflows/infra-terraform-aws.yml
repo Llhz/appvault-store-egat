@@ -1,0 +1,119 @@
+# -------------------------------------------------------------------
+# Terraform Plan / Apply for AppVault AWS Infrastructure
+# -------------------------------------------------------------------
+# Manual trigger only — select target environment when dispatching.
+# -------------------------------------------------------------------
+name: "Infrastructure — AWS Terraform"
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment"
+        required: true
+        default: "dev"
+        type: choice
+        options: [dev, stg, uat, prod]
+
+permissions:
+  id-token: write   # OIDC token for AWS login
+  contents: read
+
+env:
+  TF_WORKING_DIR: iac-aws
+  TF_VERSION: "1.9.0"
+
+jobs:
+  # ----------------------------------------------------------------
+  # Terraform Plan
+  # ----------------------------------------------------------------
+  plan:
+    name: "Terraform Plan"
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment || 'dev' }}
+    outputs:
+      plan_exit_code: ${{ steps.plan.outputs.exitcode }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Configure AWS Credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Terraform Init
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: terraform init
+
+      - name: Terraform Validate
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: terraform validate
+
+      - name: Terraform Plan
+        id: plan
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: |
+          ENV="${{ github.event.inputs.environment || 'dev' }}"
+          terraform plan \
+            -var-file="environments/${ENV}.tfvars" \
+            -out=tfplan \
+            -detailed-exitcode \
+            -input=false
+        continue-on-error: true
+
+      - name: Upload Plan Artifact
+        if: steps.plan.outputs.exitcode == 2
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan-aws-${{ github.event.inputs.environment || 'dev' }}
+          path: ${{ env.TF_WORKING_DIR }}/tfplan
+
+      - name: Fail on Plan Error
+        if: steps.plan.outputs.exitcode == 1
+        run: exit 1
+
+  # ----------------------------------------------------------------
+  # Terraform Apply (main branch only, requires approval)
+  # ----------------------------------------------------------------
+  apply:
+    name: "Terraform Apply"
+    needs: plan
+    if: github.ref == 'refs/heads/main' && needs.plan.outputs.plan_exit_code == 2
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ github.event.inputs.environment || 'dev' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Configure AWS Credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Download Plan Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: tfplan-aws-${{ github.event.inputs.environment || 'dev' }}
+          path: ${{ env.TF_WORKING_DIR }}
+
+      - name: Terraform Init
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: terraform init
+
+      - name: Terraform Apply
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: terraform apply -auto-approve -input=false tfplan
