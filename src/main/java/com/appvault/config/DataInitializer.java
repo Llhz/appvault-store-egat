@@ -19,6 +19,7 @@ public class DataInitializer implements CommandLineRunner {
     @Autowired private CategoryRepository categoryRepository;
     @Autowired private AppListingRepository appListingRepository;
     @Autowired private ReviewRepository reviewRepository;
+    @Autowired private AppSubmissionRepository appSubmissionRepository;
     @Autowired private PasswordEncoder passwordEncoder;
 
     @Override
@@ -29,6 +30,7 @@ public class DataInitializer implements CommandLineRunner {
         // Roles
         Role adminRole = createRole("ROLE_ADMIN");
         Role userRole = createRole("ROLE_USER");
+        Role developerRole = createRole("ROLE_DEVELOPER");
 
         // Users
         User admin = createUser("Admin", "User", "admin@appvault.com", "Admin123!", true, adminRole, userRole);
@@ -36,6 +38,7 @@ public class DataInitializer implements CommandLineRunner {
         User alice = createUser("Alice", "Smith", "alice@example.com", "Alice123!", true, userRole);
         User bob = createUser("Bob", "Jones", "bob@example.com", "Bob12345!", true, userRole);
         User carol = createUser("Carol", "Williams", "carol@example.com", "Carol123!", true, userRole);
+        User developer = createUser("Dev", "User", "developer@appvault.com", "Dev123!", true, userRole, developerRole);
 
         // Categories
         Category productivity = createCategory("Productivity", "fa-briefcase", "Apps to help you get things done");
@@ -310,6 +313,19 @@ public class DataInitializer implements CommandLineRunner {
         createReview("Learning Spanish fast", "I've tried Duolingo and others - LinguaLearn is the most effective by far.", 5, demo, linguaLearn);
         createReview("Great gamification", "Makes language learning fun! The streak system keeps me motivated.", 5, alice, linguaLearn);
         createReview("Very good overall", "Excellent app but the speaking recognition can be inconsistent.", 4, bob, linguaLearn);
+
+        // Sample App Submissions
+        createSubmission(developer, "NotePad Ultra", "The simplest note-taking app",
+            "NotePad Ultra is a clean, distraction-free note-taking app. Capture your thoughts quickly and stay organized with folders and tags.",
+            "DevCorp", null, BigDecimal.ZERO, productivity, SubmissionStatus.DRAFT, null);
+
+        createSubmission(developer, "ColorMix", "Blend & create palettes",
+            "ColorMix lets designers and artists create beautiful color palettes from scratch or from photos. Export to CSS, SVG, and more.",
+            "DevCorp", "https://placehold.co/200x200/FF6B6B/white?text=CM", new BigDecimal("1.99"), productivity, SubmissionStatus.PENDING_REVIEW, null);
+
+        createSubmission(developer, "TimerBox", "Simple interval timer",
+            "TimerBox is a flexible interval timer for workouts, cooking, and productivity sessions. Fully customizable alert sounds.",
+            "DevCorp", "https://placehold.co/200x200/4ECDC4/white?text=TB", BigDecimal.ZERO, utilities, SubmissionStatus.APPROVED, "Great app, approved for publishing!");
     }
 
     private Role createRole(String name) {
@@ -385,5 +401,22 @@ public class DataInitializer implements CommandLineRunner {
         review.setUser(user);
         review.setAppListing(app);
         reviewRepository.save(review);
+    }
+
+    private AppSubmission createSubmission(User submitter, String name, String subtitle, String description,
+                                            String developer, String iconUrl, BigDecimal price,
+                                            Category category, SubmissionStatus status, String reviewNotes) {
+        AppSubmission submission = new AppSubmission();
+        submission.setSubmitter(submitter);
+        submission.setName(name);
+        submission.setSubtitle(subtitle);
+        submission.setDescription(description);
+        submission.setDeveloper(developer);
+        submission.setIconUrl(iconUrl);
+        submission.setPrice(price);
+        submission.setCategory(category);
+        submission.setStatus(status);
+        submission.setReviewNotes(reviewNotes);
+        return appSubmissionRepository.save(submission);
     }
 }
