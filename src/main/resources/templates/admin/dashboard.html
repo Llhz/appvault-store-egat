@@ -94,6 +94,23 @@
                 </div>
             </a>
         </div>
+        <div class="col-md-6">
+            <a th:href="@{/admin/submissions}" class="text-decoration-none">
+                <div class="bg-white rounded-3 shadow-sm p-4 d-flex align-items-center gap-3 hover-lift">
+                    <div class="stat-icon bg-warning-light"><i class="fa-solid fa-inbox text-warning fa-xl"></i></div>
+                    <div>
+                        <div class="fw-semibold text-dark">
+                            Submission Queue
+                            <span th:if="${pendingSubmissionsCount > 0}"
+                                  class="badge bg-warning text-dark ms-1"
+                                  th:text="${pendingSubmissionsCount}">0</span>
+                        </div>
+                        <div class="text-secondary small">Review pending app submissions</div>
+                    </div>
+                    <i class="fa-solid fa-chevron-right ms-auto text-secondary"></i>
+                </div>
+            </a>
+        </div>
     </div>
 
     <!-- Recently Added -->
