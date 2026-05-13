@@ -315,19 +315,17 @@ public class DataInitializer implements CommandLineRunner {
         createReview("Very good overall", "Excellent app but the speaking recognition can be inconsistent.", 4, bob, linguaLearn);
 
         // Sample App Submissions
-        AppSubmission draftSubmission = createSubmission(developer, "NotePad Ultra", "The simplest note-taking app",
+        createSubmission(developer, "NotePad Ultra", "The simplest note-taking app",
             "NotePad Ultra is a clean, distraction-free note-taking app. Capture your thoughts quickly and stay organized with folders and tags.",
             "DevCorp", null, BigDecimal.ZERO, productivity, SubmissionStatus.DRAFT, null);
 
-        AppSubmission pendingSubmission = createSubmission(developer, "ColorMix", "Blend & create palettes",
+        createSubmission(developer, "ColorMix", "Blend & create palettes",
             "ColorMix lets designers and artists create beautiful color palettes from scratch or from photos. Export to CSS, SVG, and more.",
             "DevCorp", "https://placehold.co/200x200/FF6B6B/white?text=CM", new BigDecimal("1.99"), productivity, SubmissionStatus.PENDING_REVIEW, null);
 
-        AppSubmission approvedSubmission = createSubmission(developer, "TimerBox", "Simple interval timer",
+        createSubmission(developer, "TimerBox", "Simple interval timer",
             "TimerBox is a flexible interval timer for workouts, cooking, and productivity sessions. Fully customizable alert sounds.",
-            "DevCorp", "https://placehold.co/200x200/4ECDC4/white?text=TB", BigDecimal.ZERO, utilities, SubmissionStatus.APPROVED, null);
-        approvedSubmission.setApprovedListingId(appListingRepository.findAll().stream().findFirst().map(a -> a.getId()).orElse(null));
-        appSubmissionRepository.save(approvedSubmission);
+            "DevCorp", "https://placehold.co/200x200/4ECDC4/white?text=TB", BigDecimal.ZERO, utilities, SubmissionStatus.APPROVED, "Great app, approved for publishing!");
     }
 
     private Role createRole(String name) {

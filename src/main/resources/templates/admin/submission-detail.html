@@ -13,6 +13,10 @@
         <h1 class="page-title mb-0">Review Submission</h1>
     </div>
 
+    <div th:if="${param.errorReject}" class="alert alert-danger rounded-3 mb-3">
+        Rejection reason is required. Please provide feedback for the developer.
+    </div>
+
     <!-- Submission Preview -->
     <div class="bg-white rounded-3 shadow-sm p-4 mb-4">
         <div class="d-flex gap-3 align-items-start mb-3">

@@ -184,14 +184,17 @@ public class AdminController {
 
     @PostMapping("/submissions/{id}/approve")
     public String approveSubmission(@PathVariable Long id,
-                                     @RequestParam(defaultValue = "") String reviewNotes) {
+                                     @RequestParam(required = false) String reviewNotes) {
         appSubmissionService.approveSubmission(id, reviewNotes);
         return "redirect:/admin/submissions?approved";
     }
 
     @PostMapping("/submissions/{id}/reject")
     public String rejectSubmission(@PathVariable Long id,
-                                    @RequestParam(defaultValue = "") String reviewNotes) {
+                                    @RequestParam String reviewNotes) {
+        if (reviewNotes == null || reviewNotes.isBlank()) {
+            return "redirect:/admin/submissions/" + id + "?errorReject";
+        }
         appSubmissionService.rejectSubmission(id, reviewNotes);
         return "redirect:/admin/submissions?rejected";
     }

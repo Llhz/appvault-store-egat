@@ -48,7 +48,7 @@
                 <div th:text="${submission.price.compareTo(T(java.math.BigDecimal).ZERO) == 0 ? 'Free' : '$' + #numbers.formatDecimal(submission.price, 1, 2)}">Free</div>
             </div>
             <div class="col-md-6">
-                <div class="text-secondary small">Submitted</div>
+                <div class="text-secondary small">Created</div>
                 <div th:text="${#temporals.format(submission.createdAt, 'MMM d, yyyy HH:mm')}">-</div>
             </div>
             <div class="col-12" th:if="${submission.iconUrl != null}">
